@@ -114,7 +114,7 @@ def entry_point():
 					or "pļava" in street.text\
 					or "promenāde" in street.text\
 					or "Skvērs" in street.text\
-					or "Rajons" in street.text\
+					or "rajons" in street.text\
 				) and not street.text.endswith(" ielas")\
 					and not street.text.endswith("priekšpilsēta")\
 					and street.text != "Mazsalaca":
@@ -260,10 +260,10 @@ def entry_point():
 			if city_iter != "*Visas pilsētas*":
 				print(f"=== {city_iter} ===")
 				output += city_iter + job(city_iter, True)
-				doSaveLogs = inquirer.confirm(message="Vai vēlies saglabāt šos datus log.txt failā?").execute()
-				if doSaveLogs:
-					with open("log.txt", "w") as logfile:
-						logfile.write(output)
+		doSaveLogs = inquirer.confirm(message="Vai vēlies saglabāt šos datus log.txt failā?").execute()
+		if doSaveLogs:
+			with open("log.txt", "w") as logfile:
+				logfile.write(output)
 	else:
 		job(city_selection, False)
 
