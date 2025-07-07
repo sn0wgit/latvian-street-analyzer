@@ -27,22 +27,22 @@ continueWork = True
 
 def entry_point():
 	CITIES_STREETS_LINK = "https://lv.wikipedia.org/wiki/Kategorija:Latvijas_pils%C4%93tu_ielu_uzskait%C4%ABjumi"
-	CITIES_STREETS_LINK_CONTENT = requests.get(CITIES_STREETS_LINK)
-	CITIES_STREETS_SOUP = BeautifulSoup(CITIES_STREETS_LINK_CONTENT.content, "html.parser")
+	cities_streets_link_content = requests.get(CITIES_STREETS_LINK)
+	cities_streets_soup = BeautifulSoup(cities_streets_link_content.content, "html.parser")
 
-	def get_all_cities():
-		city_list: dict[str, str] = {}
-		soup_city_tags = CITIES_STREETS_SOUP.select(".mw-category-group ul li a")
+	def get_all_cities() -> dict[str, str]:
+		city_list: dict[str, str] = {"*Visas pilsētas*": "*"}
+		soup_city_tags = cities_streets_soup.select(".mw-category-group ul li a")
 		for city in soup_city_tags:
 			city_name = city.text
-			if not city.text.startswith("Rīga"):
-				city_link: str = city["href"] #type: ignore
-			else:
-				city_link: str = ""
-			city_list[city_name] = city_link
+			if not city.text.endswith("jumi"):
+				if not city.text.startswith("Rīga"):
+					city_list[city_name] = city["href"] #type: ignore
+				else:
+					city_list[city_name] = ""
 		return city_list
 
-	def get_streets_wikipedia(city_value: str) -> CityStreetData:
+	def get_streets_wikipedia(city_value: str, vibechecking: bool) -> CityStreetData:
 		if city_value == "": # Rīgas gadījums ar vairākām saitēm
 			whole_riga_street_list = []
 			riga_regions_links = [
@@ -56,7 +56,7 @@ def entry_point():
 			street_count = 0
 
 			for region_link in riga_regions_links:
-				riga_temp_data = get_streets_wikipedia(region_link)
+				riga_temp_data = get_streets_wikipedia(region_link, vibechecking)
 				for street in riga_temp_data.get_street_list():
 					whole_riga_street_list.append(street)
 				street_count += riga_temp_data.get_street_count()
@@ -74,13 +74,14 @@ def entry_point():
 
 			city_description = city_streets_soup.select_one(".mw-content-ltr.mw-parser-output > p").text.replace("\n", "") #type: ignore
 			city_street_count: int = int(re.search(r"(\d+)", city_description).group(0)) #type: ignore
-			street_count_confirmation = inquirer.confirm(
-				wrap_lines=True,
-				message=f'"{city_description}"'+"\n"+\
-				f'Vai te ir {city_street_count} ielu?'
-			).execute()
-			if not street_count_confirmation:
-				city_street_count = int(inquirer.number(message="Ievadiet ielu skaitu:").execute())
+			if not vibechecking:
+				street_count_confirmation = inquirer.confirm(
+					wrap_lines=True,
+					message=f'"{city_description}"'+"\n"+\
+					f'Vai te ir {city_street_count} ielu?'
+				).execute()
+				if not street_count_confirmation:
+					city_street_count = int(inquirer.number(message="Ievadiet ielu skaitu:").execute())
 
 			city_street_selection = city_streets_soup.select(".mw-parser-output ul li > a")
 			city_street_list: list[str] = []
@@ -97,6 +98,7 @@ def entry_point():
 					or "skvērs" in street.text\
 					or "gāte" in street.text\
 					or "šoseja" in street.text\
+					or "maģistrāle" in street.text\
 					or "aleja" in street.text\
 					or "taka" in street.text\
 					or "sēta" in street.text\
@@ -112,13 +114,13 @@ def entry_point():
 					or "pļava" in street.text\
 					or "promenāde" in street.text\
 					or "Skvērs" in street.text\
-				) and " ielas" not in street.text\
+					or "Rajons" in street.text\
+				) and not street.text.endswith(" ielas")\
 					and not street.text.endswith("priekšpilsēta")\
 					and street.text != "Mazsalaca":
 					city_street_list.append(street.text)
 
-
-			if city_street_count == 0:
+			if city_street_count == 0 or vibechecking:
 				city_street_count = len(city_street_list)
 
 			city_street_data = CityStreetData(city_street_count, city_street_list)
@@ -129,7 +131,7 @@ def entry_point():
 
 			return city_street_data
 
-	def get_streets_kadastrs(city_value: str, reserved_kadastrs_link: Optional[str] = None) -> CityStreetData:
+	def get_streets_kadastrs(city_value: str, vibechecking: bool, reserved_kadastrs_link: Optional[str] = None) -> CityStreetData:
 		kadastrs_link: str = ""
 		if reserved_kadastrs_link is not None:
 			kadastrs_link = re.search(r"https?:\/\/(?:www.)?kadastrs.lv\/varis\/\d*", reserved_kadastrs_link).group(0) #type: ignore
@@ -138,16 +140,17 @@ def entry_point():
 				"Diemžēl, neizdevās automātiski atrast saiti uz kadastrs.lv. Lūdzu, ievietojiet saiti:"
 			).execute()
 
-		while not inquirer.confirm(f'Vai saite "{kadastrs_link}" ir korekta?').execute():
-			temp_link = inquirer.text(
-				"Lūdzu, ievietojiet korektu saiti:"
-			).execute()
-			if "kadastrs.lv" in temp_link:
-				kadastrs_link = re.search(r"https?:\/\/(?:www.)?kadastrs.lv\/varis\/\d*", temp_link).group(0) #type: ignore
-			elif re.search(r"\d*", temp_link) is not None:
-				kadastrs_link = "https://www.kadastrs.lv/varis/"+re.search(r"\d*", temp_link).group(0) #type: ignore
-			else:
-				kadastrs_link = temp_link
+		if not vibechecking:
+			while not inquirer.confirm(f'Vai saite "{kadastrs_link}" ir korekta?').execute():
+				temp_link = inquirer.text(
+					"Lūdzu, ievietojiet korektu saiti:"
+				).execute()
+				if "kadastrs.lv" in temp_link:
+					kadastrs_link = re.search(r"https?:\/\/(?:www.)?kadastrs.lv\/varis\/\d*", temp_link).group(0) #type: ignore
+				elif re.search(r"\d*", temp_link) is not None:
+					kadastrs_link = "https://www.kadastrs.lv/varis/"+re.search(r"\d*", temp_link).group(0) #type: ignore
+				else:
+					kadastrs_link = temp_link
 
 		kadastrs_street_list: list[str] = []
 		kadastrs_link+="?sort=name&sort_direction=asc&sub_type=street&type=city&page="
@@ -161,10 +164,13 @@ def entry_point():
 			kadastrs_content = requests.get(kadastrs_link+str(kadastrs_current_page))
 			kadastrs_soup = BeautifulSoup(kadastrs_content.content, "html.parser")
 
-			if kadastrs_current_page == 1:
-				kadastrs_page_count = int(kadastrs_soup.select_one('.pagination a:nth-last-child(2)').text) #type: ignore
+			single_page: bool = not kadastrs_soup.select_one(".pagination")
 
-			print(f"{kadastrs_current_page}/{kadastrs_page_count}", end="\r")
+			if not single_page:
+				if kadastrs_current_page == 1:
+					kadastrs_page_count = int(kadastrs_soup.select_one('.pagination a:nth-last-child(2)').text) #type: ignore
+
+				print(f"{kadastrs_current_page}/{kadastrs_page_count}", end="\r")
 
 			kadastrs_soup_streets = kadastrs_soup.select("td.full_name")
 
@@ -172,18 +178,18 @@ def entry_point():
 				kadastrs_street_list.append(kadastrs_soup_street.text.split(", ")[0])
 
 			disabled_next_page = kadastrs_soup.select_one(".pagination> .disabled.next_page")
-			if disabled_next_page:
+			if disabled_next_page or single_page:
 				is_not_last_page = False
 
 		return CityStreetData(len(kadastrs_street_list), kadastrs_street_list)
 
-	def match_streets(wikipedia_street_data: CityStreetData, kadastrs_street_data: CityStreetData):
+	def match_streets(wikipedia_street_data: CityStreetData, kadastrs_street_data: CityStreetData, vibechecking: bool):
 		# step one: compare street count
 		wikipedia_street_count = wikipedia_street_data.get_street_count()
 		kadastrs_street_count = kadastrs_street_data.get_street_count()
 
 		if wikipedia_street_count != kadastrs_street_count:
-			print(f"Wikipedia: {wikipedia_street_count}\nKadastrs: {kadastrs_street_count}")
+			print(f"Wikipedia: {wikipedia_street_count}, kadastrs.lv: {kadastrs_street_count}")
 			print("Ierakstītais skaits nesakrīt!")
 
 		#step two: compare street names
@@ -201,14 +207,16 @@ def entry_point():
 		kadastrs_street_set = set(kadastrs_street_list)
 
 		name_comparison_exception_count = len(wikipedia_street_set.symmetric_difference(kadastrs_street_set)) #AΔB
+		logfiletext = ""
 
 		if name_comparison_exception_count == 0:
 			print("Nav nesakritību!")
+			logfiletext = "Nav nesakritību!"
 		else:
 			wikipedia_unique_streets = sorted(list(wikipedia_street_set - kadastrs_street_set))
 			kadastrs_unique_streets = sorted(list(kadastrs_street_set - wikipedia_street_set))
-			logfiletext = ""
 			print(f"{name_comparison_exception_count} nesakritību.\n\nLiekas ielas:")
+			logfiletext += f"{name_comparison_exception_count} nesakritību.\n\nLiekas ielas:"
 			if len(kadastrs_unique_streets) != 0:
 				print("* Vikipēdijā:")
 				logfiletext += "* Vikipēdijā:"
@@ -221,34 +229,43 @@ def entry_point():
 				for kadastrs_street_name in kadastrs_unique_streets:
 					print('"', kadastrs_street_name, '"', sep="")
 					logfiletext += "\n"+f'"{kadastrs_street_name}"'
-			doSaveLogs = inquirer.confirm(message="Vai vēlies saglabāt šos datus log.txt failā?").execute()
-			if doSaveLogs:
-				with open("log.txt", "w") as logfile:
-					logfile.write(logfiletext)
-				logfile.close()
+			if not vibechecking:
+				doSaveLogs = inquirer.confirm(message="Vai vēlies saglabāt šos datus log.txt failā?").execute()
+				if doSaveLogs:
+					with open("log.txt", "w") as logfile:
+						logfile.write(logfiletext)
+		return logfiletext+"\n\n\n"
+			
+	def job(city_selection: str, vibechecking: bool):
+		city_streets_wikipedia = get_streets_wikipedia(city_option_list[city_selection], vibechecking)
+		city_streets_kadastrs: CityStreetData
+		if city_streets_wikipedia.get_kadastrs_link() is not None:
+			city_streets_kadastrs = get_streets_kadastrs(city_option_list[city_selection], vibechecking, city_streets_wikipedia.get_kadastrs_link())
+		else:
+			city_streets_kadastrs = get_streets_kadastrs(city_option_list[city_selection], vibechecking)
 
-	all_city_list: dict[str, str] = get_all_cities()
-
-	for city in CITIES_STREETS_SOUP.select(".mw-category-group ul li a"):
-		if not city.text.startswith("Rīga"):
-			city_name = city.text
-			city_link: str = city["href"] #type: ignore
-			all_city_list[city_name] = city_link
+		return match_streets(city_streets_wikipedia, city_streets_kadastrs, vibechecking)
+		
+	city_option_list: dict[str, str] = get_all_cities()
 
 	city_selection = inquirer.select(
-		message="Izvēlies pilsētas ielas:",
-		choices=list(all_city_list.keys()),
+		message="Izvēlies pilsētu:",
+		choices=list(city_option_list.keys()),
 		max_height=20
 	).execute()
 
-	city_streets_wikipedia = get_streets_wikipedia(all_city_list[city_selection])
-	city_streets_kadastrs: CityStreetData
-	if city_streets_wikipedia.get_kadastrs_link() is not None:
-		city_streets_kadastrs = get_streets_kadastrs(all_city_list[city_selection], city_streets_wikipedia.get_kadastrs_link())
+	if city_option_list[city_selection] == "*":
+		output = ""
+		for city_iter in list(city_option_list.keys()):
+			if city_iter != "*Visas pilsētas*":
+				print(f"=== {city_iter} ===")
+				output += city_iter + job(city_iter, True)
+				doSaveLogs = inquirer.confirm(message="Vai vēlies saglabāt šos datus log.txt failā?").execute()
+				if doSaveLogs:
+					with open("log.txt", "w") as logfile:
+						logfile.write(output)
 	else:
-		city_streets_kadastrs = get_streets_kadastrs(all_city_list[city_selection])
-
-	match_streets(city_streets_wikipedia, city_streets_kadastrs)
+		job(city_selection, False)
 
 if __name__ == "__main__":
 	print("=== LSA (Latvian Street Analyzer) ===\n")
