@@ -34,7 +34,6 @@ def entry_point():
 	CITIES_STREETS_LINK = "https://lv.wikipedia.org/wiki/Kategorija:Latvijas_pils%C4%93tu_ielu_uzskait%C4%ABjumi"
 	cities_streets_link_content = requests.get(CITIES_STREETS_LINK, headers=WIKIPEDIA_HEADERS)
 	cities_streets_soup = BeautifulSoup(cities_streets_link_content.content, "html.parser")
-	print("32", cities_streets_soup)
 
 	def get_all_cities() -> dict[str, str]:
 		city_list: dict[str, str] = {"*Visas pilsētas*": "*"}
@@ -263,6 +262,7 @@ def entry_point():
 	if city_option_list[city_selection] == "*":
 		output = ""
 		for city_iter in list(city_option_list.keys()):
+			#TODO: add latency for requests to avoid being blocked
 			if city_iter != "*Visas pilsētas*":
 				print(f"=== {city_iter} ===")
 				output += city_iter + job(city_iter, True)
