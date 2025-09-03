@@ -4,6 +4,11 @@ import requests
 import re
 from bs4 import BeautifulSoup
 
+WIKIPEDIA_HEADERS = {
+	'Accept-Encoding': 'gzip',
+	'User-Agent': 'LSA_Bot/20250903 (https://github.com/sn0wgit/latvian-street-analyzer; iaroslav.viazmitin@edu.rtu.lv)'
+}
+
 class CityStreetData:
 	def __init__(self, street_count: int, street_list: list[str]):
 		self.street_count = street_count
@@ -27,8 +32,9 @@ continueWork = True
 
 def entry_point():
 	CITIES_STREETS_LINK = "https://lv.wikipedia.org/wiki/Kategorija:Latvijas_pils%C4%93tu_ielu_uzskait%C4%ABjumi"
-	cities_streets_link_content = requests.get(CITIES_STREETS_LINK)
+	cities_streets_link_content = requests.get(CITIES_STREETS_LINK, headers=WIKIPEDIA_HEADERS)
 	cities_streets_soup = BeautifulSoup(cities_streets_link_content.content, "html.parser")
+	print("32", cities_streets_soup)
 
 	def get_all_cities() -> dict[str, str]:
 		city_list: dict[str, str] = {"*Visas pilsētas*": "*"}
@@ -69,7 +75,7 @@ def entry_point():
 		else:
 			selected_city_link = "https://lv.wikipedia.org"+city_value
 			print(selected_city_link)
-			city_streets_content = requests.get(selected_city_link)
+			city_streets_content = requests.get(selected_city_link, headers=WIKIPEDIA_HEADERS)
 			city_streets_soup = BeautifulSoup(city_streets_content.content, "html.parser")
 
 			city_description = city_streets_soup.select_one(".mw-content-ltr.mw-parser-output > p").text.replace("\n", "") #type: ignore
