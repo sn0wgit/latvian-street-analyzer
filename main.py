@@ -6,7 +6,7 @@ from bs4 import BeautifulSoup
 
 WIKIPEDIA_HEADERS = {
 	'Accept-Encoding': 'gzip',
-	'User-Agent': 'LSA_Bot/20250903 (https://github.com/sn0wgit/latvian-street-analyzer; iaroslav.viazmitin@edu.rtu.lv)'
+	'User-Agent': 'LSA_Bot/20251212 (https://github.com/sn0wgit/latvian-street-analyzer; iaroslav.viazmitin@edu.rtu.lv)'
 }
 
 class CityStreetData:
@@ -76,8 +76,10 @@ def entry_point():
 			print(selected_city_link)
 			city_streets_content = requests.get(selected_city_link, headers=WIKIPEDIA_HEADERS)
 			city_streets_soup = BeautifulSoup(city_streets_content.content, "html.parser")
+			for wiki_template in city_streets_soup.select(".navbox"):
+				wiki_template.decompose()
 
-			city_description = city_streets_soup.select_one(".mw-content-ltr.mw-parser-output > p").text.replace("\n", "") #type: ignore
+			city_description = city_streets_soup.select_one(".mw-content-ltr.mw-parser-output :nth-child(1 of p)").text.replace("\n", "") #type: ignore
 			city_street_count: int = int(re.search(r"(\d+)", city_description).group(0)) #type: ignore
 			if not vibechecking:
 				street_count_confirmation = inquirer.confirm(
